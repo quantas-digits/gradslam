@@ -5,3 +5,4 @@ from .datautils import *
 from .icl import ICLDataset
 from .replica import ReplicaDataset
 from .scannet import ScannetDataset
+from .realsense import RealsenseDataset

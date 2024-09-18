@@ -11,7 +11,9 @@ from typing_extensions import Literal
 from gradslam.datasets import (
     ICLDataset,
     ReplicaDataset,
+    AzureKinectDataset,
     ScannetDataset,
+    RealsenseDataset,
     load_dataset_config,
 )
 from gradslam.slam.pointfusion import PointFusion
@@ -28,20 +30,20 @@ class ProgramArgs:
     mode: Literal["incremental", "batch"] = "incremental"
 
     # Path to the data config (.yaml) file
-    dataconfig_path: str = "dataconfigs/icl.yaml"
+    dataconfig_path: str = "examples/dataconfigs/realsense.yaml"
     # Path to the dataset directory
-    data_dir: str = "/path/to/icl/base/dir"
+    data_dir: str = "/path/to/realsense/base/dir"
     # Sequence from the dataset to load
-    sequence: str = "living_room_traj1_frei_png"
+    sequence: str = ""
     # Start frame index
     start_idx: int = 0
     # End frame index
     end_idx: int = 800
     # Stride (number of frames to skip between successive fusion steps)
-    stride: int = 50
+    stride: int = 1
     # Desired image width and height
-    desired_height: int = 240
-    desired_width: int = 320
+    desired_height: int = 720
+    desired_width: int = 1280
 
 
 def get_dataset(dataconfig_path, basedir, sequence, **kwargs):
@@ -54,6 +56,8 @@ def get_dataset(dataconfig_path, basedir, sequence, **kwargs):
         return AzureKinectDataset(config_dict, basedir, sequence, **kwargs)
     elif config_dict["dataset_name"].lower() in ["scannet"]:
         return ScannetDataset(config_dict, basedir, sequence, **kwargs)
+    elif config_dict["dataset_name"].lower() in ["realsense"]:
+        return RealsenseDataset(config_dict, basedir, sequence, **kwargs)
     else:
         raise ValueError(f"Unknown dataset name {config_dict['dataset_name']}")
 
@@ -125,7 +129,7 @@ def run_incremental_slam(dataset, device="cuda"):
             intrinsics.unsqueeze(0).unsqueeze(0).float(),
             _pose.unsqueeze(0).unsqueeze(0).float(),
         )
-        pointclouds, _ = slam.step(pointclouds, frame_cur, frame_prev)
+        pointclouds, poses = slam.step(pointclouds, frame_cur, frame_prev)
 
     pcd = pointclouds.open3d(0)
     o3d.visualization.draw_geometries([pcd])
