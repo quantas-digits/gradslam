@@ -28,6 +28,7 @@ class ProgramArgs:
 
     # gradslam mode ("incremental" vs "batch")
     mode: Literal["incremental", "batch"] = "incremental"
+    odom: Literal["gt", "icp", "gradicp"] = "gradicp"
 
     # Path to the data config (.yaml) file
     dataconfig_path: str = "examples/dataconfigs/realsense.yaml"
@@ -62,7 +63,7 @@ def get_dataset(dataconfig_path, basedir, sequence, **kwargs):
         raise ValueError(f"Unknown dataset name {config_dict['dataset_name']}")
 
 
-def run_batch_slam(dataset, device="cuda"):
+def run_batch_slam(dataset, odom, device="cuda"):
     """
     Load and run SLAM (batch mode)
     """
@@ -72,6 +73,8 @@ def run_batch_slam(dataset, device="cuda"):
     print("Loading data...")
     for idx in trange(len(dataset)):
         _color, _depth, intrinsics, _pose, *_ = dataset[idx]
+        if odom in  ["gradicp", "icp"]:
+            _pose = torch.eye(4, 4).to('cuda')
         colors.append(_color)
         depths.append(_depth)
         poses.append(_pose)
@@ -100,7 +103,7 @@ def run_batch_slam(dataset, device="cuda"):
 
     # SLAM
     print("Running batch SLAM...")
-    slam = PointFusion(odom="gt", dsratio=1, device=device)  # , use_embeddings=False)
+    slam = PointFusion(odom=odom, dsratio=1, device=device)  # , use_embeddings=False)
     pointclouds, recovered_poses = slam(rgbdimages)
 
     print(pointclouds.colors_padded.shape)
@@ -108,13 +111,13 @@ def run_batch_slam(dataset, device="cuda"):
     o3d.visualization.draw_geometries([pcd])
 
 
-def run_incremental_slam(dataset, device="cuda"):
+def run_incremental_slam(dataset, odom, device="cuda"):
     """
     Load and run SLAM (incremental mode) -- load one frame at a time
     """
 
     # SLAM
-    slam = PointFusion(odom="gt", dsratio=1, device=device)  # , use_embeddings=False)
+    slam = PointFusion(odom=odom, dsratio=1, device=device)  # , use_embeddings=False)
     pointclouds = Pointclouds(device=device)
 
     colors, depths, poses = [], [], []
@@ -123,6 +126,8 @@ def run_incremental_slam(dataset, device="cuda"):
     print("Running SLAM...")
     for idx in trange(len(dataset)):
         _color, _depth, intrinsics, _pose, *_ = dataset[idx]
+        if odom in  ["gradicp", "icp"]:
+            _pose = torch.eye(4, 4).to('cuda')
         frame_cur = RGBDImages(
             _color.unsqueeze(0).unsqueeze(0),
             _depth.unsqueeze(0).unsqueeze(0),
@@ -149,9 +154,9 @@ def main():
         desired_width=args.desired_width,
     )
     if args.mode == "incremental":
-        run_incremental_slam(dataset, device=args.device)
+        run_incremental_slam(dataset, args.odom, device=args.device)
     elif args.mode == "batch":
-        run_batch_slam(dataset, device=args.device)
+        run_batch_slam(dataset, args.odom, device=args.device)
     else:
         raise ValueError(f"Invalide `mode` argument: {args.mode}")
 
